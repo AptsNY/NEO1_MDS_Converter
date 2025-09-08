@@ -1,15 +1,25 @@
+#!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "pandas>=2.0.0",
+#     "numpy>=1.24.0", 
+#     "pillow>=9.0.0",
+#     "requests>=2.28.0"
+# ]
+# ///
+
 """
 AMEX TO MDS INVOICE TRANSFORMER
 ===============================
 
 This script converts Amex expense CSV files to MDS invoice format for upload.
 
-HOW TO USE:
-1. Update the folder paths below (INPUT_FOLDER and OUTPUT_FOLDER)
-2. Put your Amex CSV files in the INPUT_FOLDER
-3. Run the script: python amex_transformer.py
-4. Select a file from the numbered list
-5. Processed file will be saved to OUTPUT_FOLDER ready for MDS upload
+HOW TO USE (PEP 723 COMPATIBLE):
+1. Save this script as amex_processor.py
+2. Run with: python amex_processor.py (dependencies will be auto-managed)
+3. Or with pipx: pipx run amex_processor.py
+4. Or with uv: uv run amex_processor.py
 
 WHAT IT DOES:
 - Filters out negative amounts (credits)
@@ -55,7 +65,7 @@ class AmexToMDSTransformer:
         self.company_code = "BLM"
         self.vendor_account = "AMEX"
         self.due_date_offset_days = 8
-        self.images_folder = "Receipt_Images"
+        self.images_folder = "Output"  # Images will go directly in Output folder
         
     def load_amex_data(self, file_path: str) -> pd.DataFrame:
         """Load and validate Amex CSV data."""
@@ -194,9 +204,9 @@ class AmexToMDSTransformer:
         """Generate a file with all image URLs for manual download."""
         print(f"\n🖼️  Generating image URLs file for {len(df)} transactions...")
         
-        # Create images folder if it doesn't exist
-        images_path = Path(self.images_folder)
-        images_path.mkdir(exist_ok=True)
+        # Create output folder if it doesn't exist (images will go here)
+        output_path = Path(output_folder)
+        output_path.mkdir(exist_ok=True)
         
         # Generate URLs file
         urls_file = Path(output_folder) / "receipt_image_urls.txt"
@@ -207,7 +217,7 @@ class AmexToMDSTransformer:
             f.write("INSTRUCTIONS:\n")
             f.write("1. Make sure you are logged into neo1.com in your browser\n")
             f.write("2. Copy and paste each URL into your browser\n")
-            f.write("3. Right-click on the image and 'Save As' to the Receipt_Images folder\n")
+            f.write("3. Right-click on the image and 'Save As' to the Output folder\n")
             f.write("4. Use the suggested filename shown below each URL\n")
             f.write("=" * 50 + "\n\n")
             
@@ -277,11 +287,11 @@ class AmexToMDSTransformer:
             print(f"\n📁 Files created:")
             print(f"   - URLs list: {urls_file}")
             print(f"   - Batch script: {batch_script}")
-            print(f"   - Images folder: {self.images_folder}")
+            print(f"   - Images folder: {output_folder}")
             
             print(f"\n📋 Next steps:")
             print(f"   1. Run the batch script to open all URLs in browser")
-            print(f"   2. Manually save each image to the Receipt_Images folder")
+            print(f"   2. Manually save each image to the Output folder")
             print(f"   3. Use the suggested filenames from the URLs file")
         
         # Add placeholder for local image paths (will be filled after manual download)
@@ -319,7 +329,7 @@ class AmexToMDSTransformer:
         download_folder = self.get_download_folder()
         print(f"📁 Checking download folder: {download_folder}")
         
-        # Create Receipt_Images folder if it doesn't exist
+        # Create Output folder if it doesn't exist (images will go here)
         images_folder = Path(self.images_folder)
         images_folder.mkdir(exist_ok=True)
         
@@ -361,7 +371,7 @@ class AmexToMDSTransformer:
                     if (downloaded_file.name.lower().endswith(original_filename.lower()) or
                         original_filename.lower() in downloaded_file.name.lower()):
                         
-                        # Move file to Receipt_Images folder with proper name
+                        # Move file to Output folder with proper name
                         target_path = images_folder / expected_filename
                         try:
                             shutil.move(str(downloaded_file), str(target_path))
@@ -391,7 +401,7 @@ class AmexToMDSTransformer:
         
         images_folder = Path(self.images_folder)
         if not images_folder.exists():
-            print("❌ Receipt_Images folder not found!")
+            print("❌ Output folder not found!")
             return df
         
         # Get list of downloaded images
@@ -459,12 +469,11 @@ class AmexToMDSTransformer:
         
         images_folder = Path(self.images_folder)
         if not images_folder.exists():
-            print("❌ Receipt_Images folder not found!")
+            print("❌ Output folder not found!")
             return df
         
-        # Create TIFF subfolder
-        tiff_folder = images_folder / "TIFF"
-        tiff_folder.mkdir(exist_ok=True)
+        # Images will go directly in the Output folder (no subfolder needed)
+        tiff_folder = images_folder
         
         df_updated = df.copy()
         processed_count = 0
@@ -618,7 +627,7 @@ class AmexToMDSTransformer:
             images_folder = Path(self.images_folder)
             if images_folder.exists():
                 image_count = len(list(images_folder.glob('*')))
-                print(f"- Receipt images folder created: {images_folder.absolute()}")
+                print(f"- Output folder created: {images_folder.absolute()}")
                 print(f"- Image download instructions generated")
                 print(f"- Batch script created for opening URLs")
             
@@ -859,7 +868,7 @@ def process_amex_file():
             output_folder = Path(os.path.dirname(output_file))
             
             print(f"\n📁 Image Download Workflow:")
-            print(f"   - Receipt Images Folder: {images_folder.absolute()}")
+            print(f"   - Output Folder: {images_folder.absolute()}")
             print(f"   - URLs List: {output_folder / 'receipt_image_urls.txt'}")
             print(f"   - Batch Script: {output_folder / 'open_receipt_urls.bat'}")
             
@@ -869,7 +878,7 @@ def process_amex_file():
             print(f"   3. 📥 Download all images to your Downloads folder")
             print(f"   4. 🔄 Run option 2 to auto-detect, move, and convert images to TIFF")
             print(f"   5. ✅ Run option 3 to verify all images (sanity check)")
-            print(f"   6. 📤 Upload both the CSV and Receipt_Images folder to MDS")
+            print(f"   6. 📤 Upload both the CSV and all images from the Output folder to MDS")
             
         else:
             print("⚠️  No records to process (all transactions may have been filtered out)")

@@ -4,7 +4,7 @@
 
 The **NEO1 MDS Converter** is a powerful Python tool designed to transform American Express (Amex) expense CSV files into the MDS (Management Document System) invoice format for seamless upload and processing. This tool automates the conversion of expense data while maintaining data integrity and providing comprehensive receipt image management with TIFF conversion for MDS compatibility.
 
-## Features
+me ty## Features
 
 ### Core Functionality
 - **CSV Transformation**: Converts Amex expense CSV files to MDS invoice format
@@ -72,8 +72,7 @@ OUTPUT_FOLDER = r"Output"  # Folder where processed files will be saved
 The script will automatically create these folders if they don't exist:
 - `Input/` - Place your Amex CSV files here
 - `Output/` - Processed MDS files will be saved here
-- `Receipt_Images/` - Downloaded receipt images will be stored here
-- `Receipt_Images/TIFF/` - TIFF converted images for MDS upload
+- `Output/` - Downloaded receipt images and TIFF converted images for MDS upload
 
 ## Usage
 
@@ -112,7 +111,7 @@ COMPLETE WORKFLOW: CSV + TRANSFORM + OPEN IMAGE URLs
 AUTO-DETECT, MOVE, AND CONVERT IMAGES TO TIFF
 ==================================================
 1. Search Downloads folder for recently downloaded images
-2. Move images to Receipt_Images folder with proper naming
+2. Move images to Output folder with proper naming
 3. Convert all images to TIFF format for MDS compatibility
 4. Handle PDF files by copying them to output folder
 ```
@@ -210,7 +209,7 @@ class AmexToMDSTransformer:
         self.company_code = "BLM"           # Change company code
         self.vendor_account = "AMEX"        # Change vendor account
         self.due_date_offset_days = 8       # Change due date offset
-        self.images_folder = "Receipt_Images"  # Change images folder name
+        self.images_folder = "Output"  # Images go directly in Output folder
 ```
 
 ## File Structure
@@ -223,16 +222,13 @@ NEO1_MDS_Converter/
 ├── Input/                     # Place Amex CSV files here
 │   ├── amex_expenses_jan.csv
 │   └── amex_expenses_feb.csv
-├── Output/                    # Processed MDS files
-│   ├── amex_expenses_jan_MDS_READY_20240115_143022.csv
-│   ├── receipt_image_urls.txt
-│   └── open_receipt_urls.bat
-└── Receipt_Images/           # Downloaded receipt images
-    ├── TIFF/                 # TIFF converted images for MDS
-    │   ├── 0001_TXN12345_receipt.tiff
-    │   ├── 0002_TXN12346_receipt.tiff
-    │   └── ...
-    └── [original images]     # Original downloaded images
+└── Output/                   # Processed CSV and receipt images
+    ├── amex_expenses_jan_MDS_READY_20240115_143022.csv
+    ├── receipt_image_urls.txt
+    ├── open_receipt_urls.bat
+    ├── 0001_TXN12345_receipt.tiff
+    ├── 0002_TXN12346_receipt.tiff
+    └── [other TIFF images]  # All images in same directory as CSV
 ```
 
 ## Troubleshooting
@@ -259,7 +255,7 @@ NEO1_MDS_Converter/
 **Solutions**:
 - Ensure Pillow library is installed: `pip install Pillow>=9.0.0`
 - Check that images were successfully downloaded and moved
-- Verify file permissions for the Receipt_Images folder
+- Verify file permissions for the Output folder
 
 #### 5. Batch Script Not Running
 **Problem**: Batch script fails to open URLs
