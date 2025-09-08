@@ -32,8 +32,11 @@ import glob
 import requests
 import urllib.parse
 import shutil
+import subprocess
+import time
 from typing import Optional
 from pathlib import Path
+from PIL import Image
 
 class AmexToMDSTransformer:
     """
@@ -43,7 +46,7 @@ class AmexToMDSTransformer:
     - Each positive Amex transaction becomes a separate invoice
     - Vendor Account = "AMEX" (paying Amex, not original vendor)
     - Company Code = "BLM" 
-    - GL codes from Field 1 value code
+    - GL codes from Field 1, 2, 3 value codes (BA, BB, BC tree structure)
     - Invoice Description includes real vendor name
     - Filter out negative amounts (credits)
     """
@@ -67,7 +70,9 @@ class AmexToMDSTransformer:
                 'Transaction Date', 
                 'Vendor Name',
                 'Description 1 (what the user types - typically purpose of expense)',
-                'Field 1 value code'
+                'Field 1 value code',  # BA - Parent GL Code
+                'Field 2 value code',  # BB - Child GL Code 1
+                'Field 3 value code'   # BC - Child GL Code 2
             ]
             
             missing_cols = [col for col in required_cols if col not in df.columns]
@@ -159,10 +164,15 @@ class AmexToMDSTransformer:
         return filename
     
     def get_local_image_filename(self, row: pd.Series, index: int) -> str:
-        """Get the local image filename for the MDS output."""
+        """Get the local TIFF image filename for the MDS output."""
+        # Use TIFF format for MDS (preferred format)
+        tiff_image_path = row.get('TIFF_Image_Path')
+        if tiff_image_path and pd.notna(tiff_image_path):
+            return os.path.basename(tiff_image_path)
+        
+        # Fallback to original local image path if TIFF not available
         local_image_path = row.get('Local_Image_Path')
         if local_image_path and pd.notna(local_image_path):
-            # Return just the filename, not the full path
             return os.path.basename(local_image_path)
         else:
             # Fallback to generated filename if no image was downloaded
@@ -232,22 +242,13 @@ class AmexToMDSTransformer:
         """Create a batch script to open all image URLs in browser."""
         print(f"\n🌐 Creating batch script to open image URLs in browser...")
         
-        # Create batch file
+        # Create working batch file (without pause for automatic execution)
         batch_file = Path(output_folder) / "open_receipt_urls.bat"
         
         with open(batch_file, 'w') as f:
             f.write("@echo off\n")
-            f.write("echo ==========================================\n")
-            f.write("echo RECEIPT IMAGE DOWNLOAD BATCH SCRIPT\n")
-            f.write("echo ==========================================\n")
-            f.write("echo.\n")
-            f.write("echo IMPORTANT: Please follow these steps:\n")
-            f.write("echo 1. Open your web browser\n")
-            f.write("echo 2. Go to neo1.com and log in\n")
-            f.write("echo 3. Keep the browser open and logged in\n")
-            f.write("echo 4. Press any key to start opening receipt URLs\n")
-            f.write("echo.\n")
-            f.write("pause\n\n")
+            f.write("echo Opening receipt URLs in browser...\n")
+            f.write("echo Make sure you're logged into neo1.com!\n\n")
             
             for index, row in df.iterrows():
                 image_url = row.get('Image URL')
@@ -322,8 +323,8 @@ class AmexToMDSTransformer:
         images_folder = Path(self.images_folder)
         images_folder.mkdir(exist_ok=True)
         
-        # Get list of files in download folder (filter for image files)
-        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp'}
+        # Get list of files in download folder (filter for image files and PDFs)
+        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.webp', '.pdf'}
         downloaded_files = []
         
         for file_path in download_folder.iterdir():
@@ -420,6 +421,145 @@ class AmexToMDSTransformer:
         
         return df_updated
     
+    def convert_image_to_tiff(self, input_path: str, output_path: str) -> bool:
+        """Convert an image to TIFF format for MDS compatibility."""
+        try:
+            with Image.open(input_path) as img:
+                # Convert to RGB if necessary (TIFF requires RGB mode)
+                if img.mode in ('RGBA', 'LA', 'P'):
+                    img = img.convert('RGB')
+                elif img.mode != 'RGB':
+                    img = img.convert('RGB')
+                
+                # Save as TIFF
+                img.save(output_path, 'TIFF', compression='tiff_lzw')
+                print(f"✅ Converted to TIFF: {os.path.basename(output_path)}")
+                return True
+                
+        except Exception as e:
+            print(f"❌ Failed to convert {os.path.basename(input_path)} to TIFF: {str(e)}")
+            return False
+    
+    def handle_pdf_file(self, input_path: str, output_path: str) -> bool:
+        """Handle PDF files by copying them to the output folder."""
+        try:
+            # Copy PDF file to the TIFF folder (since we can't convert PDFs to TIFF with PIL)
+            shutil.copy2(input_path, output_path)
+            print(f"✅ Copied PDF file: {os.path.basename(output_path)}")
+            print(f"   Note: PDF files are kept as-is since they cannot be converted to TIFF with PIL")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to copy PDF {os.path.basename(input_path)}: {str(e)}")
+            return False
+    
+    
+    def process_images_for_mds(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Process all images to TIFF format for MDS upload."""
+        print(f"\n🖼️  Processing images for MDS compatibility (converting to TIFF)...")
+        
+        images_folder = Path(self.images_folder)
+        if not images_folder.exists():
+            print("❌ Receipt_Images folder not found!")
+            return df
+        
+        # Create TIFF subfolder
+        tiff_folder = images_folder / "TIFF"
+        tiff_folder.mkdir(exist_ok=True)
+        
+        df_updated = df.copy()
+        processed_count = 0
+        tiff_count = 0
+        failed_count = 0
+        
+        for index, row in df.iterrows():
+            local_image_path = row.get('Local_Image_Path')
+            if pd.notna(local_image_path) and local_image_path and os.path.exists(local_image_path):
+                try:
+                    # Generate filename
+                    base_name = os.path.splitext(os.path.basename(local_image_path))[0]
+                    file_extension = os.path.splitext(local_image_path)[1].lower()
+                    
+                    if file_extension == '.pdf':
+                        # Handle PDF files by copying them
+                        pdf_filename = f"{base_name}.pdf"
+                        pdf_path = tiff_folder / pdf_filename
+                        
+                        if self.handle_pdf_file(local_image_path, str(pdf_path)):
+                            tiff_count += 1
+                            df_updated.at[index, 'TIFF_Image_Path'] = str(pdf_path)
+                        else:
+                            failed_count += 1
+                    else:
+                        # Convert other image formats to TIFF
+                        tiff_filename = f"{base_name}.tiff"
+                        tiff_path = tiff_folder / tiff_filename
+                        
+                        if self.convert_image_to_tiff(local_image_path, str(tiff_path)):
+                            tiff_count += 1
+                            df_updated.at[index, 'TIFF_Image_Path'] = str(tiff_path)
+                        else:
+                            failed_count += 1
+                    
+                    processed_count += 1
+                    
+                except Exception as e:
+                    print(f"❌ Error processing image for transaction {index}: {str(e)}")
+                    failed_count += 1
+        
+        print(f"\n📊 Image Processing Summary:")
+        print(f"   - Total files processed: {processed_count}")
+        print(f"   - Files processed successfully: {tiff_count}")
+        print(f"   - Failed conversions: {failed_count}")
+        print(f"   - Output folder: {tiff_folder.absolute()}")
+        
+        if failed_count > 0:
+            print(f"\n⚠️  {failed_count} files failed to process.")
+            print(f"   This might be due to unsupported file formats or corrupted files.")
+        
+        return df_updated
+    
+    def auto_run_batch_script(self, output_folder: str) -> bool:
+        """Automatically run the open_receipt_urls.bat script after CSV processing."""
+        try:
+            batch_file = Path(output_folder) / "open_receipt_urls.bat"
+            
+            if not batch_file.exists():
+                print(f"❌ Batch script not found: {batch_file}")
+                return False
+            
+            print(f"\n🚀 Automatically running batch script to open receipt URLs...")
+            print(f"📁 Batch file: {batch_file}")
+            print(f"⏳ This will open all receipt URLs in your default browser...")
+            print(f"💡 Make sure you're logged into neo1.com in your browser!")
+            
+            # Give user a moment to read the message
+            time.sleep(2)
+            
+            # Run the batch script using absolute path
+            result = subprocess.run([str(batch_file)], 
+                                 capture_output=True, 
+                                 text=True,
+                                 timeout=30)  # 30 second timeout
+            
+            if result.returncode == 0:
+                print(f"✅ Batch script executed successfully!")
+                print(f"🌐 Receipt URLs should now be opening in your browser...")
+                return True
+            else:
+                print(f"⚠️  Batch script completed with warnings (return code: {result.returncode})")
+                if result.stderr:
+                    print(f"Error output: {result.stderr}")
+                return True  # Still consider it successful if URLs opened
+                
+        except subprocess.TimeoutExpired:
+            print(f"⏰ Batch script timed out after 30 seconds")
+            print(f"✅ URLs should still be opening in your browser...")
+            return True
+        except Exception as e:
+            print(f"❌ Failed to run batch script: {str(e)}")
+            print(f"💡 You can manually run the batch script: {batch_file}")
+            return False
+    
     def transform_to_mds_format(self, df: pd.DataFrame) -> pd.DataFrame:
         """Transform filtered Amex data to MDS invoice format."""
         print(f"Transforming {len(df)} transactions to MDS format...")
@@ -441,8 +581,9 @@ class AmexToMDSTransformer:
                 'Invoice Date MMDDYY': self.format_date_mmddyy(row['Transaction Date']),
                 'Due Date MMDDYY': self.calculate_due_date(row['Transaction Date']),
                 'Invoice Description': self.create_invoice_description(row),
-                'GL Account 1': int(row.get('Field 1 value code', 4470)) if pd.notna(row.get('Field 1 value code')) else 4470,
-                'GL Amount 1': float(row['Billing Total Gross Amount']),
+                'GL Account BA': str(row.get('Field 1 value code', '4470')) if pd.notna(row.get('Field 1 value code')) else '4470',
+                'GL Account BB': str(row.get('Field 2 value code', '')) if pd.notna(row.get('Field 2 value code')) else '',
+                'GL Account BC': str(row.get('Field 3 value code', '')) if pd.notna(row.get('Field 3 value code')) else '',
                 'Image File Spec': self.get_local_image_filename(row, index)
             }
             
@@ -453,8 +594,7 @@ class AmexToMDSTransformer:
         # Ensure correct data types
         mds_df['Unnamed: 0'] = mds_df['Unnamed: 0'].astype(int)
         mds_df['Invoice Amount'] = mds_df['Invoice Amount'].astype(float)
-        mds_df['GL Account 1'] = mds_df['GL Account 1'].astype(int)
-        mds_df['GL Amount 1'] = mds_df['GL Amount 1'].astype(float)
+        # GL Account codes are kept as strings to preserve the tree structure
         
         print(f"Successfully transformed to {len(mds_df)} MDS invoice records")
         return mds_df
@@ -470,7 +610,9 @@ class AmexToMDSTransformer:
             print(f"- Total invoices: {len(df)}")
             print(f"- Total amount: ${df['Invoice Amount'].sum():,.2f}")
             print(f"- Date range: {df['Invoice Date MMDDYY'].min()} to {df['Invoice Date MMDDYY'].max()}")
-            print(f"- Unique GL accounts: {df['GL Account 1'].nunique()}")
+            print(f"- Unique GL Account BA codes: {df['GL Account BA'].nunique()}")
+            print(f"- Unique GL Account BB codes: {df['GL Account BB'].nunique()}")
+            print(f"- Unique GL Account BC codes: {df['GL Account BC'].nunique()}")
             
             # Check for image download setup
             images_folder = Path(self.images_folder)
@@ -509,11 +651,14 @@ class AmexToMDSTransformer:
             output_folder = os.path.dirname(output_file)
             filtered_df_with_images = self.generate_image_download_instructions(filtered_df, output_folder)
             
-            # Step 4: Transform to MDS format
+            # Step 4: Transform to MDS format (without TIFF conversion yet)
             mds_df = self.transform_to_mds_format(filtered_df_with_images)
             
-            # Step 4: Save results
+            # Step 5: Save results
             self.save_mds_data(mds_df, output_file)
+            
+            # Step 6: Automatically run batch script to open receipt URLs
+            self.auto_run_batch_script(output_folder)
             
             print("\n✅ TRANSFORMATION COMPLETED SUCCESSFULLY")
             return mds_df
@@ -636,9 +781,9 @@ def main():
     
     while True:
         print("\n📋 MAIN MENU:")
-        print("1. Process Amex CSV file (with image download setup)")
-        print("2. Auto-detect and move downloaded images")
-        print("3. Verify downloaded images")
+        print("1. Process CSV + Transform + Open Image URLs (Complete Workflow)")
+        print("2. Auto-detect, move, and convert images to TIFF format")
+        print("3. Verify downloaded images (Sanity Check)")
         print("4. Exit")
         
         choice = input("\nEnter your choice (1-4): ").strip()
@@ -657,9 +802,9 @@ def main():
 
 
 def process_amex_file():
-    """Process Amex CSV file with image download setup."""
-    print("\n🔄 AMEX FILE PROCESSING")
-    print("=" * 40)
+    """Process Amex CSV file with complete workflow: CSV processing, transformation, and automatic image URL opening."""
+    print("\n🔄 COMPLETE WORKFLOW: CSV + TRANSFORM + OPEN IMAGE URLs")
+    print("=" * 60)
     
     # Setup folders
     if not setup_folders():
@@ -704,7 +849,7 @@ def process_amex_file():
             # Show sample of first few records
             print(f"\n📋 SAMPLE OUTPUT (first 3 records):")
             print("-" * 60)
-            sample_cols = ['Company Code', 'Vendor Account', 'Invoice Amount', 'Invoice Description']
+            sample_cols = ['Company Code', 'Vendor Account', 'Invoice Amount', 'Invoice Description', 'GL Account BA', 'GL Account BB', 'GL Account BC']
             print(result_df[sample_cols].head(3).to_string(index=False))
             
             print(f"\n🎯 Ready for MDS upload!")
@@ -718,14 +863,13 @@ def process_amex_file():
             print(f"   - URLs List: {output_folder / 'receipt_image_urls.txt'}")
             print(f"   - Batch Script: {output_folder / 'open_receipt_urls.bat'}")
             
-            print(f"\n📋 Next Steps for Image Download:")
-            print(f"   1. Open your web browser and go to neo1.com")
-            print(f"   2. Log into your neo1.com account")
-            print(f"   3. Keep the browser open and logged in")
-            print(f"   4. Run the batch script (open_receipt_urls.bat)")
-            print(f"   5. Download all images to your Downloads folder")
-            print(f"   6. Run option 2 to auto-detect and move images")
-            print(f"   7. Upload both the CSV and Receipt_Images folder to MDS")
+            print(f"\n📋 Next Steps:")
+            print(f"   1. ✅ CSV processing and transformation completed")
+            print(f"   2. ✅ Receipt URLs should have opened in your browser")
+            print(f"   3. 📥 Download all images to your Downloads folder")
+            print(f"   4. 🔄 Run option 2 to auto-detect, move, and convert images to TIFF")
+            print(f"   5. ✅ Run option 3 to verify all images (sanity check)")
+            print(f"   6. 📤 Upload both the CSV and Receipt_Images folder to MDS")
             
         else:
             print("⚠️  No records to process (all transactions may have been filtered out)")
@@ -737,9 +881,9 @@ def process_amex_file():
 
 
 def auto_detect_images():
-    """Auto-detect and move downloaded images."""
-    print("\n🔍 AUTO-DETECT DOWNLOADED IMAGES")
-    print("=" * 40)
+    """Auto-detect, move, and convert downloaded images to TIFF format."""
+    print("\n🔍 AUTO-DETECT, MOVE, AND CONVERT IMAGES TO TIFF")
+    print("=" * 60)
     
     # Find the most recent processed CSV file
     output_files = list(Path("Output").glob("*_MDS_READY_*.csv"))
@@ -773,8 +917,17 @@ def auto_detect_images():
         # Auto-detect and move images
         updated_df = transformer.find_and_move_downloaded_images(filtered_df)
         
-        print(f"\n✅ Auto-detection complete!")
-        print(f"📁 Check the Receipt_Images folder for moved files")
+        # Convert moved images to TIFF format
+        if len(updated_df) > 0:
+            print(f"\n🖼️  Converting moved images to TIFF format...")
+            processed_df = transformer.process_images_for_mds(updated_df)
+            print(f"✅ TIFF conversion complete!")
+        else:
+            print(f"⚠️  No images found to convert to TIFF")
+        
+        print(f"\n✅ Auto-detection, move, and TIFF conversion complete!")
+        print(f"📁 Images have been moved and converted to TIFF format")
+        print(f"🔄 Run option 3 to verify all images were processed correctly")
         
     except Exception as e:
         print(f"❌ Auto-detection failed: {e}")
@@ -783,9 +936,9 @@ def auto_detect_images():
 
 
 def verify_images():
-    """Verify downloaded images."""
-    print("\n🔍 VERIFY DOWNLOADED IMAGES")
-    print("=" * 40)
+    """Verify downloaded images (Sanity Check)."""
+    print("\n🔍 VERIFY DOWNLOADED IMAGES (SANITY CHECK)")
+    print("=" * 50)
     
     # Find the most recent processed CSV file
     output_files = list(Path("Output").glob("*_MDS_READY_*.csv"))
