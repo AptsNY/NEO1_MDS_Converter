@@ -60,7 +60,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Configure Folder Paths
-Edit the configuration section in `Amex processor.py`:
+Edit the configuration section in `amex_processor.py`:
 
 ```python
 # Configuration - UPDATE THESE PATHS FOR YOUR COMPUTER
@@ -84,7 +84,7 @@ The script will automatically create these folders if they don't exist:
 
 2. **Run the Converter**
    ```bash
-   python "Amex processor.py"
+   python amex_processor.py
    ```
 
 3. **Follow the 3-Step Workflow**
@@ -217,7 +217,7 @@ class AmexToMDSTransformer:
 
 ```
 NEO1_MDS_Converter/
-├── Amex processor.py          # Main application file
+├── amex_processor.py          # Main application file
 ├── README.md                  # This documentation file
 ├── requirements.txt           # Python dependencies
 ├── Input/                     # Place Amex CSV files here
