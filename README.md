@@ -169,6 +169,7 @@ The processed file will contain these columns:
 | `Company Code` | Company identifier | BLM |
 | `Vendor Account` | Vendor account code | AMEX |
 | `Invoice Amount` | Transaction amount | 125.50 |
+| `GL Amount 1` | GL amount (same as Invoice Amount) | 125.50 |
 | `Invoice Number CRC32 Hash Input String` | Hash input for invoice number | TXN123456,2024-01-15 |
 | `Invoice Number` | Unique 8-character hex invoice number | A1B2C3D4 |
 | `Invoice Date MMDDYY` | Invoice date in MM/DD/YY format | 01/15/24 |
@@ -181,9 +182,9 @@ The processed file will contain these columns:
 
 ### Sample Output Data
 ```csv
-Unnamed: 0,Company Code,Vendor Account,Invoice Amount,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
-1,BLM,AMEX,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0001_TXN12345_receipt.tiff
-2,BLM,AMEX,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0002_TXN12346_receipt.tiff
+Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
+1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0001_TXN12345_receipt.tiff
+2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0002_TXN12346_receipt.tiff
 ```
 
 ## Configuration

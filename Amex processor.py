@@ -585,6 +585,7 @@ class AmexToMDSTransformer:
                 'Company Code': self.company_code,
                 'Vendor Account': self.vendor_account,
                 'Invoice Amount': float(row['Billing Total Gross Amount']),
+                'GL Amount 1': float(row['Billing Total Gross Amount']),  # Same as Invoice Amount
                 'Invoice Number CRC32 Hash Input String': self.generate_crc32_hash_input(row, index),
                 'Invoice Number': self.generate_invoice_number(transaction_id),
                 'Invoice Date MMDDYY': self.format_date_mmddyy(row['Transaction Date']),
@@ -603,6 +604,7 @@ class AmexToMDSTransformer:
         # Ensure correct data types
         mds_df['Unnamed: 0'] = mds_df['Unnamed: 0'].astype(int)
         mds_df['Invoice Amount'] = mds_df['Invoice Amount'].astype(float)
+        mds_df['GL Amount 1'] = mds_df['GL Amount 1'].astype(float)
         # GL Account codes are kept as strings to preserve the tree structure
         
         print(f"Successfully transformed to {len(mds_df)} MDS invoice records")
@@ -622,6 +624,7 @@ class AmexToMDSTransformer:
             print(f"- Unique GL Account BA codes: {df['GL Account BA'].nunique()}")
             print(f"- Unique GL Account BB codes: {df['GL Account BB'].nunique()}")
             print(f"- Unique GL Account BC codes: {df['GL Account BC'].nunique()}")
+            print(f"- GL Amount 1 total: ${df['GL Amount 1'].sum():,.2f}")
             
             # Check for image download setup
             images_folder = Path(self.images_folder)
@@ -858,7 +861,7 @@ def process_amex_file():
             # Show sample of first few records
             print(f"\n📋 SAMPLE OUTPUT (first 3 records):")
             print("-" * 60)
-            sample_cols = ['Company Code', 'Vendor Account', 'Invoice Amount', 'Invoice Description', 'GL Account BA', 'GL Account BB', 'GL Account BC']
+            sample_cols = ['Company Code', 'Vendor Account', 'Invoice Amount', 'GL Amount 1', 'Invoice Description', 'GL Account BA', 'GL Account BB', 'GL Account BC']
             print(result_df[sample_cols].head(3).to_string(index=False))
             
             print(f"\n🎯 Ready for MDS upload!")
