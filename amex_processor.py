@@ -322,7 +322,7 @@ class AmexToMDSTransformer:
         return Path.cwd()
     
     def find_and_move_downloaded_images(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Find recently downloaded images and move them to the Receipt_Images folder."""
+        """Find recently downloaded images and move them to the Output folder."""
         print(f"\n🔍 Searching for recently downloaded receipt images...")
         
         # Get download folder
@@ -406,7 +406,7 @@ class AmexToMDSTransformer:
         
         # Get list of downloaded images
         downloaded_files = list(images_folder.glob('*'))
-        print(f"Found {len(downloaded_files)} files in Receipt_Images folder")
+        print(f"Found {len(downloaded_files)} files in Output folder")
         
         # Update dataframe with actual downloaded image paths
         df_updated = df.copy()
@@ -1063,12 +1063,17 @@ def verify_images_for_file(csv_file_path: str):
         # Count results
         total_with_images = len(verified_df[verified_df['Image URL'].notna() & (verified_df['Image URL'] != '')])
         downloaded_images = len(verified_df[verified_df['Local_Image_Path'].notna()])
-        pdf_images = len(verified_df[verified_df['PDF_Image_Path'].notna()])
+        
+        # Check if PDF_Image_Path column exists (only after PDF conversion)
+        pdf_images = 0
+        if 'PDF_Image_Path' in verified_df.columns:
+            pdf_images = len(verified_df[verified_df['PDF_Image_Path'].notna()])
         
         print(f"\n📊 VERIFICATION RESULTS:")
         print(f"   - Total transactions with images: {total_with_images}")
         print(f"   - Successfully downloaded: {downloaded_images}")
-        print(f"   - Converted to PDF: {pdf_images}")
+        if pdf_images > 0:
+            print(f"   - Converted to PDF: {pdf_images}")
         print(f"   - Missing images: {total_with_images - downloaded_images}")
         
         if downloaded_images < total_with_images:
