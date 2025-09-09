@@ -700,19 +700,54 @@ OUTPUT_FOLDER = r"Output"  # Folder where processed files will be saved
 def setup_folders():
     """Create input and output folders if they don't exist."""
     try:
+        # Create folders with exist_ok=True to prevent errors if they already exist
         os.makedirs(INPUT_FOLDER, exist_ok=True)
         os.makedirs(OUTPUT_FOLDER, exist_ok=True)
-        print(f"📁 Input folder: {INPUT_FOLDER}")
-        print(f"📁 Output folder: {OUTPUT_FOLDER}")
-        return True
+        
+        # Check if folders were created successfully
+        input_exists = os.path.exists(INPUT_FOLDER)
+        output_exists = os.path.exists(OUTPUT_FOLDER)
+        
+        if input_exists and output_exists:
+            print(f"✅ Folders ready:")
+            print(f"   📁 Input folder: {os.path.abspath(INPUT_FOLDER)}")
+            print(f"   📁 Output folder: {os.path.abspath(OUTPUT_FOLDER)}")
+            return True
+        else:
+            print(f"❌ Failed to create required folders")
+            return False
+            
     except Exception as e:
         print(f"❌ Error creating folders: {e}")
+        return False
+
+
+def ensure_folders_exist():
+    """Ensure required folders exist, create them if they don't."""
+    try:
+        # Check if folders exist
+        input_exists = os.path.exists(INPUT_FOLDER)
+        output_exists = os.path.exists(OUTPUT_FOLDER)
+        
+        if not input_exists or not output_exists:
+            print(f"🔧 Setting up required folders...")
+            return setup_folders()
+        else:
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error checking folders: {e}")
         return False
 
 
 def find_csv_files():
     """Find all CSV files in the input folder."""
     import glob
+    
+    # Ensure folders exist first
+    if not ensure_folders_exist():
+        print(f"❌ Failed to set up required folders.")
+        return []
     
     if not os.path.exists(INPUT_FOLDER):
         print(f"❌ Input folder does not exist: {INPUT_FOLDER}")
@@ -791,6 +826,12 @@ def main():
     print("🚀 AMEX TO MDS INVOICE TRANSFORMER")
     print("=" * 50)
     
+    # Ensure required folders exist before starting
+    if not ensure_folders_exist():
+        print("❌ Failed to set up required folders. Please check permissions and try again.")
+        input("\nPress Enter to exit...")
+        return
+    
     while True:
         print("\n📋 MAIN MENU:")
         print("1. Process CSV + Transform + Open Image URLs (Complete Workflow)")
@@ -818,9 +859,7 @@ def process_amex_file():
     print("\n🔄 COMPLETE WORKFLOW: CSV + TRANSFORM + OPEN IMAGE URLs")
     print("=" * 60)
     
-    # Setup folders
-    if not setup_folders():
-        return
+    # Folders are already ensured to exist by main() function
     
     # Find available CSV files
     csv_files = find_csv_files()
@@ -897,8 +936,14 @@ def auto_detect_images():
     print("\n🔍 AUTO-DETECT, MOVE, AND CONVERT IMAGES TO TIFF")
     print("=" * 60)
     
+    # Ensure folders exist
+    if not ensure_folders_exist():
+        print("❌ Failed to set up required folders.")
+        input("\nPress Enter to continue...")
+        return
+    
     # Find the most recent processed CSV file
-    output_files = list(Path("Output").glob("*_MDS_READY_*.csv"))
+    output_files = list(Path(OUTPUT_FOLDER).glob("*_MDS_READY_*.csv"))
     if not output_files:
         print("❌ No processed CSV files found. Please run option 1 first.")
         input("\nPress Enter to continue...")
@@ -952,8 +997,14 @@ def verify_images():
     print("\n🔍 VERIFY DOWNLOADED IMAGES (SANITY CHECK)")
     print("=" * 50)
     
+    # Ensure folders exist
+    if not ensure_folders_exist():
+        print("❌ Failed to set up required folders.")
+        input("\nPress Enter to continue...")
+        return
+    
     # Find the most recent processed CSV file
-    output_files = list(Path("Output").glob("*_MDS_READY_*.csv"))
+    output_files = list(Path(OUTPUT_FOLDER).glob("*_MDS_READY_*.csv"))
     if not output_files:
         print("❌ No processed CSV files found. Please run option 1 first.")
         input("\nPress Enter to continue...")

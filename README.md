@@ -28,6 +28,7 @@ me ty## Features
 - **Interactive Menu**: User-friendly command-line interface with numbered file selection
 - **Progress Tracking**: Real-time progress updates and status messages
 - **Error Handling**: Comprehensive error handling with helpful error messages
+- **Automatic Setup**: Creates required folders automatically on first run
 - **Summary Reports**: Detailed processing summaries with transaction counts and amounts
 
 ## Prerequisites
@@ -68,11 +69,12 @@ INPUT_FOLDER = r"Input"  # Folder where Amex CSV files are stored
 OUTPUT_FOLDER = r"Output"  # Folder where processed files will be saved
 ```
 
-### 4. Create Required Folders
-The script will automatically create these folders if they don't exist:
+### 4. Automatic Folder Setup
+The script automatically creates required folders on first run:
 - `Input/` - Place your Amex CSV files here
-- `Output/` - Processed MDS files will be saved here
-- `Output/` - Downloaded receipt images and TIFF converted images for MDS upload
+- `Output/` - Processed MDS files and images will be saved here
+
+**No manual folder creation needed!** The script handles everything automatically.
 
 ## Usage
 
