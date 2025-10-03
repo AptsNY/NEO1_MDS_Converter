@@ -4,7 +4,7 @@
 
 The **NEO1 MDS Converter** is a powerful Python tool designed to transform American Express (Amex) expense CSV files into the MDS (Management Document System) invoice format for seamless upload and processing. This tool automates the conversion of expense data while maintaining data integrity and providing comprehensive receipt image management with TIFF conversion for MDS compatibility.
 
-me ty## Features
+## Features
 
 ### Core Functionality
 - **CSV Transformation**: Converts Amex expense CSV files to MDS invoice format
@@ -16,12 +16,16 @@ me ty## Features
 
 ### Receipt Image Management
 - **URL Extraction**: Extracts receipt image URLs from neo1.com
-- **Automated Batch Scripts**: Automatically opens all receipt URLs in browser
-- **TIFF Conversion**: Converts all images to TIFF format (preferred by MDS)
-- **PDF Support**: Handles PDF receipts by copying them to output folder
-- **Auto-Detection**: Automatically detects and moves downloaded images to organized folders
+- **Chrome Integration**: Uses Chrome with `--download-path` flag to download directly to Output folder
+- **Smart Browser Detection**: Automatically finds Chrome, Edge, or Brave executable across all platforms
+- **Multi-Directory Search**: Searches 20+ possible download locations across Windows/Mac/Linux
+- **Windows Registry Integration**: Reads actual Windows Downloads folder from registry (handles custom locations)
+- **PDF Conversion**: Converts all images to PDF format (MDS-compatible)
+- **PDF Support**: Handles existing PDF receipts by copying them to output folder
+- **Intelligent File Matching**: Finds files by exact filename (no time restrictions)
 - **Image Verification**: Verifies downloaded images and provides status reports
 - **File Organization**: Organizes receipt images with consistent naming conventions
+- **Auto Cleanup**: Automatically removes batch files before exit (ready for email)
 
 ### User Experience
 - **Streamlined 3-Step Workflow**: Process → Download → Verify
@@ -110,12 +114,13 @@ COMPLETE WORKFLOW: CSV + TRANSFORM + OPEN IMAGE URLs
 
 #### Step 2: Image Processing
 ```
-AUTO-DETECT, MOVE, AND CONVERT IMAGES TO TIFF
+AUTO-DETECT, MOVE, AND CONVERT IMAGES TO PDF
 ==================================================
-1. Search Downloads folder for recently downloaded images
-2. Move images to Output folder with proper naming
-3. Convert all images to TIFF format for MDS compatibility
-4. Handle PDF files by copying them to output folder
+1. Search 20+ download directories (including Windows Registry locations)
+2. Find images by exact filename (no time restrictions)
+3. Move images to Output folder with proper naming
+4. Convert all images to PDF format for MDS compatibility
+5. Handle existing PDF files by copying them to output folder
 ```
 
 #### Step 3: Verification
@@ -131,10 +136,10 @@ VERIFY DOWNLOADED IMAGES (SANITY CHECK)
 
 The main menu provides four options:
 
-1. **Process CSV + Transform + Open Image URLs (Complete Workflow)** - Main processing workflow
-2. **Auto-detect, move, and convert images to TIFF format** - Process downloaded images
+1. **Process CSV + Transform + Open Image URLs (Complete Workflow)** - Main processing workflow with Chrome integration
+2. **Auto-detect, move, and convert images to PDF format** - Intelligent multi-directory search and PDF conversion
 3. **Verify downloaded images (Sanity Check)** - Check image processing status
-4. **Exit** - Close the application
+4. **Exit** - Clean up batch files and close the application
 
 ## Input File Format
 
@@ -180,13 +185,13 @@ The processed file will contain these columns:
 | `GL Account BA` | Parent GL account code | 4470 |
 | `GL Account BB` | Child GL account code 1 | YONKERS/WESTCHESTER |
 | `GL Account BC` | Child GL account code 2 | ACESL |
-| `Image File Spec` | Local TIFF image filename | 0001_TXN12345_receipt.tiff |
+| `Image File Spec` | Local PDF image filename | 0001_TXN12345_receipt.pdf |
 
 ### Sample Output Data
 ```csv
 Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
-1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0001_TXN12345_receipt.tiff
-2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0002_TXN12346_receipt.tiff
+1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0001_TXN12345_receipt.pdf
+2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0002_TXN12346_receipt.pdf
 ```
 
 ## Configuration
@@ -201,7 +206,8 @@ The converter follows these business rules:
 - **Filtering**: Negative amounts (credits) are automatically filtered out
 - **Due Date**: Transaction date + 8 days
 - **Invoice Numbers**: Generated as 8-character hexadecimal hashes
-- **Image Format**: All images converted to TIFF format for MDS compatibility
+- **Image Format**: All images converted to PDF format for MDS compatibility
+- **Download Method**: Chrome browser with `--download-path` for direct Output folder delivery
 
 ### Customizable Settings
 You can modify these settings in the `AmexToMDSTransformer` class:
@@ -225,13 +231,12 @@ NEO1_MDS_Converter/
 ├── Input/                     # Place Amex CSV files here
 │   ├── amex_expenses_jan.csv
 │   └── amex_expenses_feb.csv
-└── Output/                   # Processed CSV and receipt images
+└── Output/                   # Processed CSV and receipt images (created automatically)
     ├── amex_expenses_jan_MDS_READY_20240115_143022.csv
-    ├── receipt_image_urls.txt
-    ├── open_receipt_urls.bat
-    ├── 0001_TXN12345_receipt.tiff
-    ├── 0002_TXN12346_receipt.tiff
-    └── [other TIFF images]  # All images in same directory as CSV
+    ├── 0001_TXN12345_receipt.pdf
+    ├── 0002_TXN12346_receipt.pdf
+    └── [other PDF images]  # All images in same directory as CSV
+    # Note: Batch files are auto-deleted on exit (Option 4)
 ```
 
 ## Troubleshooting
@@ -253,19 +258,29 @@ NEO1_MDS_Converter/
 - Check that the Image URL column contains valid URLs
 - The batch script should automatically open URLs in your browser
 
-#### 4. TIFF Conversion Issues
-**Problem**: Images not converting to TIFF format
+#### 4. PDF Conversion Issues
+**Problem**: Images not converting to PDF format
 **Solutions**:
 - Ensure Pillow library is installed: `pip install Pillow>=9.0.0`
 - Check that images were successfully downloaded and moved
 - Verify file permissions for the Output folder
 
-#### 5. Batch Script Not Running
-**Problem**: Batch script fails to open URLs
+#### 5. Custom Downloads Folder Not Found
+**Problem**: Files not found even though they were downloaded
 **Solutions**:
-- Ensure you're logged into neo1.com in your browser
-- Check that the batch file was generated correctly
-- Try running the batch file manually from the Output folder
+- The script now reads Windows Registry for actual Downloads location
+- Searches 20+ possible download directories automatically
+- Check console output to see which directories are being searched
+- If still not found, files may be in an unexpected location
+
+#### 6. Batch Script Not Running
+**Problem**: Batch script fails to download images
+**Solutions**:
+- Ensure Chrome, Edge, or Brave browser is installed
+- Check that you're logged into neo1.com in your browser
+- Script automatically detects browser executable
+- If Chrome not found, falls back to default browser
+- Check console output to see which browser is being used
 
 ### Debug Mode
 For detailed debugging, you can add logging to the script:
@@ -316,7 +331,17 @@ We welcome feature requests! Please include:
 
 ## Version History
 
-### Version 2.0.0 (Current)
+### Version 3.0.0 (Current)
+- **Chrome Integration**: Direct downloads to Output folder using `--download-path` flag
+- **Smart Browser Detection**: Automatic Chrome/Edge/Brave executable detection across all platforms
+- **Windows Registry Support**: Reads actual Downloads folder location from Windows Registry
+- **Multi-Directory Search**: Searches 20+ possible download locations (Windows/Mac/Linux)
+- **Intelligent File Matching**: Finds files by exact filename without time restrictions
+- **PDF Conversion**: Converts all images to PDF format for MDS compatibility
+- **Auto Cleanup**: Removes batch files on exit for email-ready output
+- **Cross-Platform**: Full support for Windows, macOS, and Linux
+
+### Version 2.0.0
 - **Major Update**: Complete workflow automation
 - **GL Code Tree Mapping**: Proper BA, BB, BC tree structure support
 - **TIFF Conversion**: Automatic image conversion to MDS-preferred format

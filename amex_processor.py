@@ -248,25 +248,105 @@ class AmexToMDSTransformer:
         print(f"✅ Generated URLs file: {urls_file}")
         return str(urls_file)
     
+    def find_chrome_executable(self) -> Optional[str]:
+        """Find Chrome executable path across all platforms."""
+        # Exhaustive list of possible Chrome locations
+        possible_chrome_paths = [
+            # Windows - Chrome
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%PROGRAMFILES%\Google\Chrome\Application\chrome.exe"),
+            os.path.expandvars(r"%PROGRAMFILES(X86)%\Google\Chrome\Application\chrome.exe"),
+
+            # Windows - Edge (Chromium-based, supports same flags)
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            os.path.expandvars(r"%PROGRAMFILES%\Microsoft\Edge\Application\msedge.exe"),
+
+            # Windows - Brave
+            os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+
+            # macOS - Chrome
+            "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+
+            # macOS - Edge
+            "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+
+            # macOS - Brave
+            "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+
+            # Linux - Chrome
+            "/usr/bin/google-chrome",
+            "/usr/bin/google-chrome-stable",
+            "/usr/local/bin/google-chrome",
+
+            # Linux - Chromium
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+
+            # Linux - Brave
+            "/usr/bin/brave-browser",
+            "/usr/bin/brave",
+        ]
+
+        for chrome_path in possible_chrome_paths:
+            if os.path.exists(chrome_path):
+                return chrome_path
+
+        return None
+
     def create_batch_download_script(self, df: pd.DataFrame, output_folder: str) -> str:
-        """Create a batch script to open all image URLs in browser."""
-        print(f"\n🌐 Creating batch script to open image URLs in browser...")
-        
-        # Create working batch file (without pause for automatic execution)
+        """Create a batch script to download images directly to Output folder using Chrome."""
+        print(f"\n🌐 Creating batch script to download images with Chrome...")
+
+        # Find Chrome executable
+        chrome_exe = self.find_chrome_executable()
+
+        # Get absolute path to Output folder for downloads
+        output_path = Path(output_folder).resolve()
+
+        # Create working batch file
         batch_file = Path(output_folder) / "open_receipt_urls.bat"
-        
+
         with open(batch_file, 'w') as f:
             f.write("@echo off\n")
-            f.write("echo Opening receipt URLs in browser...\n")
-            f.write("echo Make sure you're logged into neo1.com!\n\n")
-            
-            for index, row in df.iterrows():
-                image_url = row.get('Image URL')
-                if pd.notna(image_url) and image_url:
-                    f.write(f'start "" "{image_url}"\n')
-                    f.write("timeout /t 2 /nobreak > nul\n")  # Wait 2 seconds between opens
-        
-        print(f"✅ Generated batch script: {batch_file}")
+            f.write("echo Downloading receipt images to Output folder...\n")
+            f.write("echo Make sure you're logged into neo1.com!\n")
+            f.write(f"echo Download location: {output_path}\n\n")
+
+            if chrome_exe:
+                f.write(f"echo Using browser: {chrome_exe}\n\n")
+                # Use Chrome with --download-path to force downloads to Output folder
+                for index, row in df.iterrows():
+                    image_url = row.get('Image URL')
+                    if pd.notna(image_url) and image_url:
+                        # Escape quotes in URL
+                        escaped_url = image_url.replace('"', '""')
+                        # Launch Chrome with download path override
+                        f.write(f'start "" "{chrome_exe}" --new-window --download-path="{output_path}" "{escaped_url}"\n')
+                        f.write("timeout /t 3 /nobreak > nul\n")  # Wait 3 seconds between downloads
+            else:
+                f.write("echo WARNING: Chrome not found! Using default browser (downloads may go to default location)\n\n")
+                # Fallback to default browser
+                for index, row in df.iterrows():
+                    image_url = row.get('Image URL')
+                    if pd.notna(image_url) and image_url:
+                        f.write(f'start "" "{image_url}"\n')
+                        f.write("timeout /t 2 /nobreak > nul\n")
+
+            f.write("\necho.\n")
+            f.write("echo All download requests sent!\n")
+            f.write("echo Files should be downloading to: %s\n" % output_path)
+
+        if chrome_exe:
+            print(f"✅ Generated batch script with Chrome download path: {batch_file}")
+            print(f"   Files will download directly to: {output_path}")
+        else:
+            print(f"⚠️  Chrome not found - batch script will use default browser")
+            print(f"   Generated batch script: {batch_file}")
+
         return str(batch_file)
     
     def generate_image_download_instructions(self, df: pd.DataFrame, output_folder: str) -> pd.DataFrame:
@@ -300,99 +380,173 @@ class AmexToMDSTransformer:
         
         return df_with_placeholders
     
-    def get_download_folder(self) -> Path:
-        """Get the user's default download folder."""
-        # Try to get from environment variable first
-        download_folder = os.environ.get('USERPROFILE') + '\\Downloads'
-        if os.path.exists(download_folder):
-            return Path(download_folder)
-        
-        # Fallback to common download locations
-        common_paths = [
-            os.path.expanduser('~/Downloads'),
-            os.path.expanduser('~/Desktop'),
-            'C:\\Users\\Public\\Downloads'
-        ]
-        
-        for path in common_paths:
-            if os.path.exists(path):
-                return Path(path)
-        
-        # Default to current directory if nothing found
-        return Path.cwd()
+    def get_windows_shell_folder(self, folder_guid: str) -> Optional[Path]:
+        """Get Windows shell folder path from registry."""
+        try:
+            import winreg
+            key_path = r"Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders"
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path)
+            path_str, _ = winreg.QueryValueEx(key, folder_guid)
+            winreg.CloseKey(key)
+            path = Path(path_str)
+            if path.exists():
+                return path
+        except:
+            pass
+        return None
+
+    def get_all_download_directories(self) -> list:
+        """Get ALL possible download directories across all platforms."""
+        home = Path.home()
+
+        # Start with empty list
+        all_possible_paths = []
+
+        # PRIORITY 1: Get actual Windows Downloads folder from registry (handles custom locations)
+        try:
+            import winreg
+            # Downloads folder GUID
+            downloads_path = self.get_windows_shell_folder("{374DE290-123F-4565-9164-39C4925E467B}")
+            if downloads_path:
+                all_possible_paths.append(downloads_path)
+
+            # Also get Desktop, Documents, etc. from registry
+            desktop_path = self.get_windows_shell_folder("Desktop")
+            if desktop_path:
+                all_possible_paths.append(desktop_path)
+
+            documents_path = self.get_windows_shell_folder("Personal")
+            if documents_path:
+                all_possible_paths.append(documents_path)
+        except ImportError:
+            # Not on Windows, skip registry lookups
+            pass
+
+        # PRIORITY 2: Standard locations (all platforms)
+        all_possible_paths.extend([
+            # Windows locations
+            Path(os.environ.get('USERPROFILE', '')) / 'Downloads',
+            home / 'Downloads',
+            Path('C:/Users') / os.environ.get('USERNAME', '') / 'Downloads',
+            Path('C:/Users/Public/Downloads'),
+            home / 'Desktop',
+            home / 'Documents',
+            home / 'AppData' / 'Local' / 'Temp',
+
+            # macOS locations
+            Path('/Users') / os.environ.get('USER', '') / 'Downloads',
+            home / 'Desktop',
+            home / 'Documents',
+
+            # Linux locations
+            home / 'downloads',  # lowercase variant
+            Path('/tmp'),
+            home / '.cache',
+
+            # Browser-specific download folders (all platforms)
+            # Chrome
+            home / 'AppData' / 'Local' / 'Google' / 'Chrome' / 'User Data' / 'Default' / 'Downloads',
+            home / 'Library' / 'Application Support' / 'Google' / 'Chrome' / 'Default' / 'Downloads',
+            home / '.config' / 'google-chrome' / 'Default' / 'Downloads',
+
+            # Edge
+            home / 'AppData' / 'Local' / 'Microsoft' / 'Edge' / 'User Data' / 'Default' / 'Downloads',
+            home / 'Library' / 'Application Support' / 'Microsoft Edge' / 'Default' / 'Downloads',
+            home / '.config' / 'microsoft-edge' / 'Default' / 'Downloads',
+
+            # Brave
+            home / 'AppData' / 'Local' / 'BraveSoftware' / 'Brave-Browser' / 'User Data' / 'Default' / 'Downloads',
+            home / 'Library' / 'Application Support' / 'BraveSoftware' / 'Brave-Browser' / 'Default' / 'Downloads',
+            home / '.config' / 'BraveSoftware' / 'Brave-Browser' / 'Default' / 'Downloads',
+
+            # Firefox
+            home / 'AppData' / 'Roaming' / 'Mozilla' / 'Firefox' / 'Downloads',
+            home / 'Library' / 'Application Support' / 'Firefox' / 'Downloads',
+            home / '.mozilla' / 'firefox' / 'Downloads',
+
+            # Current working directory
+            Path.cwd(),
+        ])
+
+        # Filter to only existing directories and remove duplicates
+        valid_paths = []
+        seen_paths = set()
+
+        for path in all_possible_paths:
+            if path and path.exists() and path.is_dir():
+                # Resolve to absolute path to detect duplicates
+                abs_path = path.resolve()
+                if abs_path not in seen_paths:
+                    valid_paths.append(abs_path)
+                    seen_paths.add(abs_path)
+
+        print(f"🔍 Found {len(valid_paths)} valid download directories to search")
+        if valid_paths:
+            print(f"   First directory: {valid_paths[0]}")
+        return valid_paths
     
     def find_and_move_downloaded_images(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Find recently downloaded images and move them to the Output folder."""
-        print(f"\n🔍 Searching for recently downloaded receipt images...")
-        
-        # Get download folder
-        download_folder = self.get_download_folder()
-        print(f"📁 Checking download folder: {download_folder}")
-        
+        """Find downloaded images by exact filename and move them to the Output folder."""
+        print(f"\n🔍 Searching for downloaded receipt images...")
+
+        # Get ALL possible download directories
+        download_directories = self.get_all_download_directories()
+
         # Create Output folder if it doesn't exist (images will go here)
         images_folder = Path(self.images_folder)
         images_folder.mkdir(exist_ok=True)
-        
-        # Get list of files in download folder (filter for image files and PDFs)
-        image_extensions = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp', '.pdf'}
-        downloaded_files = []
-        
-        for file_path in download_folder.iterdir():
-            if file_path.is_file() and file_path.suffix.lower() in image_extensions:
-                # Check if file was modified recently (within last 30 minutes)
-                file_age = datetime.now() - datetime.fromtimestamp(file_path.stat().st_mtime)
-                if file_age.total_seconds() < 1800:  # 30 minutes
-                    downloaded_files.append(file_path)
-        
-        print(f"📸 Found {len(downloaded_files)} recently downloaded images")
-        
-        if not downloaded_files:
-            print("❌ No recently downloaded images found in download folder")
-            print("💡 Make sure to download the receipt images from neo1.com first")
-            return df
-        
-        # Try to match downloaded files to transactions
+
         df_updated = df.copy()
         matched_count = 0
-        
+        not_found = []
+
+        # For each transaction, search for the exact file across all directories
         for index, row in df.iterrows():
             image_url = row.get('Image URL')
             if pd.notna(image_url) and image_url:
-                # Extract expected filename from URL
+                # Extract exact filename from URL
                 parsed_url = urllib.parse.urlparse(image_url)
                 path_parts = parsed_url.path.split('/')
                 original_filename = path_parts[-1] if path_parts else 'receipt.png'
-                transaction_id = row.get('Transaction Ref. ID', f"txn_{index}")
-                expected_filename = f"{index:04d}_{transaction_id[:8]}_{original_filename}"
-                
-                # Look for matching file in downloaded files
-                for downloaded_file in downloaded_files:
-                    # Check if this file matches our expected pattern
-                    if (downloaded_file.name.lower().endswith(original_filename.lower()) or
-                        original_filename.lower() in downloaded_file.name.lower()):
-                        
-                        # Move file to Output folder with proper name
-                        target_path = images_folder / expected_filename
+
+                # Search all download directories for this exact file
+                file_found = False
+                for download_dir in download_directories:
+                    potential_file = download_dir / original_filename
+
+                    if potential_file.exists() and potential_file.is_file():
+                        # Found it! Move to Output folder
+                        transaction_id = row.get('Transaction Ref. ID', f"txn_{index}")
+                        target_filename = f"{index:04d}_{transaction_id[:8]}_{original_filename}"
+                        target_path = images_folder / target_filename
+
                         try:
-                            shutil.move(str(downloaded_file), str(target_path))
+                            shutil.move(str(potential_file), str(target_path))
                             df_updated.at[index, 'Local_Image_Path'] = str(target_path)
-                            print(f"✅ Moved: {downloaded_file.name} → {expected_filename}")
+                            print(f"✅ Found and moved: {original_filename} (from {download_dir.name})")
                             matched_count += 1
-                            downloaded_files.remove(downloaded_file)  # Remove from list to avoid duplicates
-                            break
+                            file_found = True
+                            break  # Stop searching once found
                         except Exception as e:
-                            print(f"❌ Failed to move {downloaded_file.name}: {str(e)}")
-        
-        print(f"✅ Successfully matched and moved {matched_count} images")
-        
-        # Show any remaining unmatched files
-        if downloaded_files:
-            print(f"⚠️  {len(downloaded_files)} downloaded images could not be matched:")
-            for file in downloaded_files[:5]:  # Show first 5
-                print(f"   - {file.name}")
-            if len(downloaded_files) > 5:
-                print(f"   ... and {len(downloaded_files) - 5} more")
-        
+                            print(f"❌ Failed to move {original_filename}: {str(e)}")
+
+                if not file_found:
+                    not_found.append(original_filename)
+
+        # Summary
+        print(f"\n📊 Search Results:")
+        print(f"   ✅ Found and moved: {matched_count} files")
+        print(f"   ❌ Not found: {len(not_found)} files")
+
+        if not_found and len(not_found) <= 10:
+            print(f"\n⚠️  Missing files:")
+            for filename in not_found:
+                print(f"   - {filename}")
+        elif not_found:
+            print(f"\n⚠️  {len(not_found)} files missing (showing first 10):")
+            for filename in not_found[:10]:
+                print(f"   - {filename}")
+
         return df_updated
     
     def verify_downloaded_images(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -820,6 +974,38 @@ def generate_output_filename(input_file):
     return os.path.join(OUTPUT_FOLDER, output_filename)
 
 
+def cleanup_batch_files():
+    """Delete batch files and URL files from Output folder before exit."""
+    print("\n🧹 Cleaning up batch files before exit...")
+
+    output_path = Path(OUTPUT_FOLDER)
+    if not output_path.exists():
+        return
+
+    # Files to delete
+    files_to_delete = [
+        "open_receipt_urls.bat",
+        "receipt_image_urls.txt"
+    ]
+
+    deleted_count = 0
+    for filename in files_to_delete:
+        file_path = output_path / filename
+        if file_path.exists():
+            try:
+                file_path.unlink()
+                print(f"   ✅ Deleted: {filename}")
+                deleted_count += 1
+            except Exception as e:
+                print(f"   ❌ Failed to delete {filename}: {str(e)}")
+
+    if deleted_count > 0:
+        print(f"✅ Cleaned up {deleted_count} file(s)")
+        print("📁 Output folder is now ready for email attachment")
+    else:
+        print("   No batch files found to clean up")
+
+
 def main():
     """Interactive file processor with folder-based file selection."""
     print("🚀 AMEX TO MDS INVOICE TRANSFORMER")
@@ -847,6 +1033,8 @@ def main():
         elif choice == "3":
             verify_images()
         elif choice == "4":
+            # Clean up batch files before exiting
+            cleanup_batch_files()
             print("👋 Goodbye!")
             break
         else:
