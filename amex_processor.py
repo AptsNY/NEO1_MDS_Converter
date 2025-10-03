@@ -23,7 +23,7 @@ HOW TO USE (PEP 723 COMPATIBLE):
 
 WHAT IT DOES:
 - Filters out negative amounts (credits)
-- Converts each expense to an invoice with vendor = "AMEX"
+- Converts each expense to an invoice with vendor = "AMEX911"
 - Uses real vendor names in descriptions
 - Generates unique invoice numbers and file specs
 - Maintains GL account codes from source data
@@ -54,7 +54,7 @@ class AmexToMDSTransformer:
     
     Business Rules:
     - Each positive Amex transaction becomes a separate invoice
-    - Vendor Account = "AMEX" (paying Amex, not original vendor)
+    - Vendor Account = "AMEX911" (paying Amex, not original vendor)
     - Company Code = "BLM" 
     - GL codes from Field 1, 2, 3 value codes (BA, BB, BC tree structure)
     - Invoice Description includes real vendor name
@@ -63,7 +63,7 @@ class AmexToMDSTransformer:
     
     def __init__(self):
         self.company_code = "BLM"
-        self.vendor_account = "AMEX"
+        self.vendor_account = "AMEX911"
         self.due_date_offset_days = 8
         self.images_folder = "Output"  # Images will go directly in Output folder
         

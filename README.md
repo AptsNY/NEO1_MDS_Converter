@@ -175,7 +175,7 @@ The processed file will contain these columns:
 |--------|-------------|---------|
 | `Unnamed: 0` | Sequential numbering | 1, 2, 3... |
 | `Company Code` | Company identifier | BLM |
-| `Vendor Account` | Vendor account code | AMEX |
+| `Vendor Account` | Vendor account code | AMEX911 |
 | `Invoice Amount` | Transaction amount | 125.50 |
 | `GL Amount 1` | GL amount (same as Invoice Amount) | 125.50 |
 | `Invoice Number CRC32 Hash Input String` | Hash input for invoice number | TXN123456,2024-01-15 |
@@ -193,15 +193,15 @@ The processed file will contain these columns:
 **After Step 1 (before images downloaded):**
 ```csv
 Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
-1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,PLACEHOLDER
-2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,PLACEHOLDER
+1,BLM,AMEX911,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,PLACEHOLDER
+2,BLM,AMEX911,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,PLACEHOLDER
 ```
 
 **After Step 2 (images downloaded and converted):**
 ```csv
 Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
-1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0000_TXN12345_4f08ae18-fd91-4689-8d3e-a4f96b23cbdf.pdf
-2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0001_TXN12346_72fc4987-68e8-4ba9-afda-f8b2a2641722.pdf
+1,BLM,AMEX911,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0000_TXN12345_4f08ae18-fd91-4689-8d3e-a4f96b23cbdf.pdf
+2,BLM,AMEX911,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0001_TXN12346_72fc4987-68e8-4ba9-afda-f8b2a2641722.pdf
 ```
 
 ## Configuration
@@ -209,7 +209,7 @@ Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number
 ### Business Rules
 The converter follows these business rules:
 
-- **Vendor Account**: Always set to "AMEX" (paying Amex, not original vendor)
+- **Vendor Account**: Always set to "AMEX911" (paying Amex, not original vendor)
 - **Company Code**: Set to "BLM"
 - **GL Code Tree**: Preserves Field 1, 2, 3 value codes as BA, BB, BC tree structure
 - **Invoice Descriptions**: Include real vendor name and expense purpose
@@ -226,7 +226,7 @@ You can modify these settings in the `AmexToMDSTransformer` class:
 class AmexToMDSTransformer:
     def __init__(self):
         self.company_code = "BLM"           # Change company code
-        self.vendor_account = "AMEX"        # Change vendor account
+        self.vendor_account = "AMEX911"     # Change vendor account
         self.due_date_offset_days = 8       # Change due date offset
         self.images_folder = "Output"  # Images go directly in Output folder
 ```
