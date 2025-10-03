@@ -179,14 +179,14 @@ class AmexToMDSTransformer:
         pdf_image_path = row.get('PDF_Image_Path')
         if pdf_image_path and pd.notna(pdf_image_path):
             return os.path.basename(pdf_image_path)
-        
+
         # Fallback to original local image path if PDF not available
         local_image_path = row.get('Local_Image_Path')
         if local_image_path and pd.notna(local_image_path):
             return os.path.basename(local_image_path)
         else:
-            # Fallback to generated filename if no image was downloaded
-            return self.generate_pdf_filename(row, index)
+            # No image downloaded yet - return placeholder
+            return "PLACEHOLDER"
     
     def create_invoice_description(self, row: pd.Series) -> str:
         """Create invoice description with vendor name and purpose."""

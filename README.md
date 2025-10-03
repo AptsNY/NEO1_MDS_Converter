@@ -108,7 +108,7 @@ COMPLETE WORKFLOW: CSV + TRANSFORM + OPEN IMAGE URLs
 2. Filter positive transactions
 3. Generate image download instructions and batch scripts
 4. Transform to MDS format with proper GL code mapping
-5. Save processed file
+5. Save processed file (Image File Spec shows "PLACEHOLDER" until images are downloaded)
 6. Automatically run batch script to open receipt URLs
 ```
 
@@ -118,9 +118,10 @@ AUTO-DETECT, MOVE, AND CONVERT IMAGES TO PDF
 ==================================================
 1. Search 20+ download directories (including Windows Registry locations)
 2. Find images by exact filename (no time restrictions)
-3. Move images to Output folder with proper naming
+3. Move images to Output folder with UUID-based naming
 4. Convert all images to PDF format for MDS compatibility
 5. Handle existing PDF files by copying them to output folder
+6. Update CSV with actual PDF filenames (replaces "PLACEHOLDER" with real filenames)
 ```
 
 #### Step 3: Verification
@@ -185,13 +186,22 @@ The processed file will contain these columns:
 | `GL Account BA` | Parent GL account code | 4470 |
 | `GL Account BB` | Child GL account code 1 | YONKERS/WESTCHESTER |
 | `GL Account BC` | Child GL account code 2 | ACESL |
-| `Image File Spec` | Local PDF image filename | 0001_TXN12345_receipt.pdf |
+| `Image File Spec` | Local PDF image filename | PLACEHOLDER (before download), 0001_TXN12345_receipt.pdf (after download) |
 
 ### Sample Output Data
+
+**After Step 1 (before images downloaded):**
 ```csv
 Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
-1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0001_TXN12345_receipt.pdf
-2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0002_TXN12346_receipt.pdf
+1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,PLACEHOLDER
+2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,PLACEHOLDER
+```
+
+**After Step 2 (images downloaded and converted):**
+```csv
+Unnamed: 0,Company Code,Vendor Account,Invoice Amount,GL Amount 1,Invoice Number CRC32 Hash Input String,Invoice Number,Invoice Date MMDDYY,Due Date MMDDYY,Invoice Description,GL Account BA,GL Account BB,GL Account BC,Image File Spec
+1,BLM,AMEX,125.50,125.50,"TXN123456,2024-01-15",A1B2C3D4,01/15/24,01/23/24,"Office Supplies Co | Office supplies for Q1",4470,YONKERS/WESTCHESTER,ACESL,0000_TXN12345_4f08ae18-fd91-4689-8d3e-a4f96b23cbdf.pdf
+2,BLM,AMEX,89.99,89.99,"TXN123457,2024-01-16",E5F6G7H8,01/16/24,01/24/24,"Restaurant ABC | Business lunch meeting",4470,YONKERS/WESTCHESTER,111B,0001_TXN12346_72fc4987-68e8-4ba9-afda-f8b2a2641722.pdf
 ```
 
 ## Configuration
@@ -331,7 +341,12 @@ We welcome feature requests! Please include:
 
 ## Version History
 
-### Version 3.0.0 (Current)
+### Version 3.1.0 (Current)
+- **PLACEHOLDER Fix**: Image File Spec now shows "PLACEHOLDER" instead of misleading filenames before download
+- **Clear Status Indication**: Immediately visible which images haven't been downloaded yet
+- **UUID-Based Filenames**: Actual downloaded files use UUID-based naming for uniqueness
+
+### Version 3.0.0
 - **Chrome Integration**: Direct downloads to Output folder using `--download-path` flag
 - **Smart Browser Detection**: Automatic Chrome/Edge/Brave executable detection across all platforms
 - **Windows Registry Support**: Reads actual Downloads folder location from Windows Registry
